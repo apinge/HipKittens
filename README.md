@@ -21,6 +21,11 @@ We find that core tile and bulk compute interfaces carry over from TK to HK, but
 
 We support CDNA3 and CDNA 4. 
 
+**News**
+- [January 2026] HipKittens is accepted to [MLSys 2026 in Seattle]()!
+- [Febuary 2026] Will presented HipKittens as a GPU Mode lecture, [check it out](https://www.youtube.com/watch?v=jsYyF03Fs3o)!
+- [March 2026] HipKittens is officially an AITER backend! The first [HK kernels have landed in AITER](https://github.com/ROCm/aiter/pull/2039)!
+
 ## Setup
 
 ```bash
