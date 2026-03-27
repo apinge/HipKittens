@@ -17,13 +17,13 @@ We find that core tile and bulk compute interfaces carry over from TK to HK, but
 1. **Tile primitives**: sized according to the tensor core units. Tile memory ops are coalesced, bank conflict free, and eagerly use tensor core layouts. We focus on minimizing address computation costs. 
 2. **Python-inspired functions**: bulk compute functions that operate over tiles. These are lightweight, wrapping assembly and HIP.
 3. **Asynchronous loads/stores**: hide latencies and address generation using direct buffer loads to shared memory.
-4. **Scheduling and overlapping**: we show two core patterns for overlapping compute and memory, 8-wave ping pong and 4-wave interelave, that appear across kernels.
+4. **Scheduling and overlapping**: we show two core patterns for overlapping compute and memory, 8-wave ping pong and 4-wave interleave, that appear across kernels.
 
 We support CDNA3 and CDNA 4. 
 
 **News**
 - [January 2026] HipKittens is accepted to [MLSys 2026 in Seattle]()!
-- [Febuary 2026] Will presented HipKittens as a GPU Mode lecture, [check it out](https://www.youtube.com/watch?v=jsYyF03Fs3o)!
+- [February 2026] Will presented HipKittens as a GPU Mode lecture, [check it out](https://www.youtube.com/watch?v=jsYyF03Fs3o)!
 - [March 2026] HipKittens is officially an AITER backend! The first [HK kernels have landed in AITER](https://github.com/ROCm/aiter/pull/2039)!
 
 ## Setup
@@ -155,8 +155,8 @@ make clean && make
 python test_python.py
 ```
 
-Potental issues:
-- If you see a complaint that AITER is not building in the ```test_python.py``` files, then instal AITER from source [following this README.md](https://github.com/ROCm/aiter/tree/main). Luckily, it is very quick! You can also comment out AITER from ```test_python.py``` if you only need the HK kernel.
+Potential issues:
+- If you see a complaint that AITER is not building in the ```test_python.py``` files, then install AITER from source [following this README.md](https://github.com/ROCm/aiter/tree/main). Luckily, it is very quick! You can also comment out AITER from ```test_python.py``` if you only need the HK kernel.
 - If you see an error that ```bin/hipcc/``` is not found, then edit the Makefile to replace ROCM_BUILD_DIR with ```/opt/rocm/bin/hipcc```
 
 
