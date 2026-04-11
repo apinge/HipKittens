@@ -13,6 +13,7 @@
 #include <hip/hip_bf16.h>
 #include <hip/hip_fp16.h>
 #include <hip/hip_fp8.h>
+#include <hip/hip_fp4.h>
 #include <hip/hip_runtime.h>
 #include <string>
 #include <bit>
@@ -36,7 +37,6 @@ using bf16_2 = __hip_bfloat162;
  * @brief Packed word of two half-precision floating-point values.
  */
 using half_2 = __half2;
-#ifdef KITTENS_CDNA4
 /**
  * @brief float8 floating-point type.
  */
@@ -49,20 +49,18 @@ using fp8e4m3_2 = __hip_fp8x2_e4m3;
  * @brief Packed word of four float8 floating-point values.
  */
 using fp8e4m3_4 = __hip_fp8x4_e4m3;
-#else
 /**
- * @brief float8 floating-point type.
+ * @brief FP4 E2M1 floating-point type.
  */
-using fp8e4m3 = __hip_fp8_e4m3_fnuz;
+using fp4e2m1   = __hip_fp4_e2m1;
 /**
- * @brief Packed word of two float8 floating-point values.
+ * @brief Packed word of two FP4 E2M1 floating-point values.
  */
-using fp8e4m3_2 = __hip_fp8x2_e4m3_fnuz;
+using fp4e2m1_2 = __hip_fp4x2_e2m1;
 /**
- * @brief Packed word of four float8 floating-point values.
+ * @brief Packed word of four FP4 E2M1 floating-point values.
  */
-using fp8e4m3_4 = __hip_fp8x4_e4m3_fnuz;
-#endif
+using fp4e2m1_4 = __hip_fp4x4_e2m1;
 
 namespace ducks {
 /**
@@ -73,9 +71,11 @@ namespace ducks {
 namespace base_types {
 
 template<typename T>
-concept T2 = std::is_same_v<T, float2> || std::is_same_v<T, bf16_2> || std::is_same_v<T, half_2> || std::is_same_v<T, fp8e4m3_4>;
+concept T2 = std::is_same_v<T, float2> || std::is_same_v<T, bf16_2> || std::is_same_v<T, half_2> || std::is_same_v<T, fp8e4m3_4>
+    || std::is_same_v<T, fp4e2m1_4>;
 template<typename T>
-concept T1 = std::is_same_v<T, float>  || std::is_same_v<T, bf16  > || std::is_same_v<T, half> || std::is_same_v<T, fp8e4m3>;
+concept T1 = std::is_same_v<T, float>  || std::is_same_v<T, bf16  > || std::is_same_v<T, half> || std::is_same_v<T, fp8e4m3>
+    || std::is_same_v<T, fp4e2m1>;
 
 } // namespace base_types
 } // namespace ducks
@@ -155,6 +155,14 @@ template<> struct constants<fp8e4m3_2> {
 template<> struct constants<fp8e4m3_4> {
     static __device__ inline constexpr fp8e4m3_4 zero() { return std::bit_cast<fp8e4m3_4>(uint32_t(0x00000000)); }
     static __device__ inline constexpr fp8e4m3_4 one() { return std::bit_cast<fp8e4m3_4>(uint32_t(0x38383838)); }
+};
+template<> struct constants<fp4e2m1> {
+    static __device__ inline constexpr fp4e2m1 zero() { return std::bit_cast<fp4e2m1>(uint8_t(0x00)); }
+    static __device__ inline constexpr fp4e2m1 one()  { return std::bit_cast<fp4e2m1>(uint8_t(0x02)); }
+};
+template<> struct constants<fp4e2m1_4> {
+    static __device__ inline constexpr fp4e2m1_4 zero() { return std::bit_cast<fp4e2m1_4>(uint16_t(0x0000)); }
+    static __device__ inline constexpr fp4e2m1_4 one()  { return std::bit_cast<fp4e2m1_4>(uint16_t(0x2222)); }
 };
 template<> struct constants<int> {
     static __device__ inline constexpr int zero()      { return 0; }
@@ -248,6 +256,16 @@ template<> struct packing<fp8e4m3_4> {
     static __host__ __device__ inline constexpr int num() { return 4; }
     using unpacked_type = fp8e4m3;
     using packed_type = fp8e4m3_4;
+};
+template<> struct packing<fp4e2m1> {
+    static __host__ __device__ inline constexpr int num() { return 1; }
+    using unpacked_type = fp4e2m1;
+    using packed_type = fp4e2m1_4;
+};
+template<> struct packing<fp4e2m1_4> {
+    static __host__ __device__ inline constexpr int num() { return 4; }
+    using unpacked_type = fp4e2m1;
+    using packed_type = fp4e2m1_4;
 };
 
 /**
@@ -374,6 +392,26 @@ template<> struct convertor<fp8e4m3, float> {
 template<> struct convertor<float, fp8e4m3> {
     static __host__ __device__ inline float convert(const fp8e4m3 & u) {
         return float(u);
+    }
+};
+template<> struct convertor<fp4e2m1, float> {
+    static __host__ __device__ inline fp4e2m1 convert(const float & u) {
+        return fp4e2m1(u);
+    }
+};
+template<> struct convertor<float, fp4e2m1> {
+    static __host__ __device__ inline float convert(const fp4e2m1 & u) {
+        return float(u);
+    }
+};
+template<> struct convertor<fp4e2m1_4, float4> {
+    static __host__ __device__ inline fp4e2m1_4 convert(const float4& u) {
+        return fp4e2m1_4(u);
+    }
+};
+template<> struct convertor<float4, fp4e2m1_4> {
+    static __host__ __device__ inline float4 convert(const fp4e2m1_4& u) {
+        return float4(u);
     }
 };
 }
