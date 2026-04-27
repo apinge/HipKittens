@@ -532,17 +532,6 @@ __device__ static inline void mma_ABt_scaled(D &d,
                         scale_a,
                         scale_b
                     );
-                    #pragma unroll
-                    for(int k = 1; k < A::width; k++) {
-                        mma_ABt_base_scaled<N, M>(
-                            d.tiles[N][M],
-                            a.tiles[N][k],
-                            b.tiles[M][k],
-                            d.tiles[N][M],
-                            scale_a,
-                            scale_b
-                        );
-                    }
                 }.template operator()<Ms>(), ...);
             }(std::make_index_sequence<D::width>{});
         }.template operator()<Ns>(), ...);

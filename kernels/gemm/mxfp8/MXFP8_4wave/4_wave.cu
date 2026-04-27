@@ -513,6 +513,8 @@ bool run_correctness() {
 
 
 // Benchmark
+constexpr int ROTATING_BUFFER_COUNT = 4;
+
 template <int M, int N, int K>
 TimingResult run_benchmark(int warmup_iters, int timing_iters) {
     constexpr int k_iters  = K / BLOCK_K;
@@ -521,25 +523,31 @@ TimingResult run_benchmark(int warmup_iters, int timing_iters) {
     std::vector<fp8e4m3> a_q, b_q;
     std::vector<uint8_t> sa_raw, sb_raw;
     std::vector<uint32_t> sa_mfma, sb_mfma;
-    prepare_mxfp8_data<M, N, K>(a_q, b_q, sa_raw, sb_raw, sa_mfma, sb_mfma);
 
     fp8e4m3 *d_a, *d_b; float *d_c; uint32_t *d_sa, *d_sb;
-    hipMalloc(&d_a, (size_t)M * K);
-    hipMalloc(&d_b, (size_t)N * K);
-    hipMalloc(&d_c, (size_t)M * N * sizeof(float));
-    hipMalloc(&d_sa, (size_t)k_iters * M * sizeof(uint32_t));
-    hipMalloc(&d_sb, (size_t)k_iters * N * sizeof(uint32_t));
-    hipMemcpy(d_a, a_q.data(), (size_t)M * K, hipMemcpyHostToDevice);
-    hipMemcpy(d_b, b_q.data(), (size_t)N * K, hipMemcpyHostToDevice);
-    hipMemcpy(d_sa, sa_mfma.data(), (size_t)k_iters * M * sizeof(uint32_t), hipMemcpyHostToDevice);
-    hipMemcpy(d_sb, sb_mfma.data(), (size_t)k_iters * N * sizeof(uint32_t), hipMemcpyHostToDevice);
+    hipMalloc(&d_a,  (size_t)ROTATING_BUFFER_COUNT * M * K);
+    hipMalloc(&d_b,  (size_t)ROTATING_BUFFER_COUNT * N * K);
+    hipMalloc(&d_c,  (size_t)M * N * sizeof(float));
+    hipMalloc(&d_sa, (size_t)ROTATING_BUFFER_COUNT * k_iters * M * sizeof(uint32_t));
+    hipMalloc(&d_sb, (size_t)ROTATING_BUFFER_COUNT * k_iters * N * sizeof(uint32_t));
+    HipCheckError();
 
-    gl<fp8e4m3, 1, 1, M, K> A_gl(d_a, nullptr, nullptr, nullptr, nullptr);
-    gl<fp8e4m3, 1, 1, N, K> B_gl(d_b, nullptr, nullptr, nullptr, nullptr);
-    gl<float,   1, 1, M, N> C_gl(d_c, nullptr, nullptr, nullptr, nullptr);
+    for (int buf = 0; buf < ROTATING_BUFFER_COUNT; buf++) {
+        prepare_mxfp8_data<M, N, K>(a_q, b_q, sa_raw, sb_raw, sa_mfma, sb_mfma, 42 + buf);
+        hipMemcpy(d_a  + (size_t)buf * M * K, a_q.data(), (size_t)M * K, hipMemcpyHostToDevice);
+        hipMemcpy(d_b  + (size_t)buf * N * K, b_q.data(), (size_t)N * K, hipMemcpyHostToDevice);
+        hipMemcpy(d_sa + (size_t)buf * k_iters * M, sa_mfma.data(), (size_t)k_iters * M * sizeof(uint32_t), hipMemcpyHostToDevice);
+        hipMemcpy(d_sb + (size_t)buf * k_iters * N, sb_mfma.data(), (size_t)k_iters * N * sizeof(uint32_t), hipMemcpyHostToDevice);
+    }
+    HipCheckError();
 
     for (int i = 0; i < warmup_iters; i++) {
-        mxfp8_gemm_4wave_kernel<M, N, K><<<grid, 256>>>(A_gl, B_gl, C_gl, d_sa, d_sb);
+        int buf = i % ROTATING_BUFFER_COUNT;
+        gl<fp8e4m3, 1, 1, M, K> A(d_a + (size_t)buf * M * K, nullptr, nullptr, nullptr, nullptr);
+        gl<fp8e4m3, 1, 1, N, K> B(d_b + (size_t)buf * N * K, nullptr, nullptr, nullptr, nullptr);
+        gl<float,   1, 1, M, N> C(d_c, nullptr, nullptr, nullptr, nullptr);
+        mxfp8_gemm_4wave_kernel<M, N, K><<<grid, 256>>>(A, B, C,
+            d_sa + (size_t)buf * k_iters * M, d_sb + (size_t)buf * k_iters * N);
         hipDeviceSynchronize();
     }
 
@@ -547,8 +555,13 @@ TimingResult run_benchmark(int warmup_iters, int timing_iters) {
     hipEventCreate(&t0); hipEventCreate(&t1);
     std::vector<float> times;
     for (int r = 0; r < timing_iters; r++) {
+        int buf = r % ROTATING_BUFFER_COUNT;
+        gl<fp8e4m3, 1, 1, M, K> A(d_a + (size_t)buf * M * K, nullptr, nullptr, nullptr, nullptr);
+        gl<fp8e4m3, 1, 1, N, K> B(d_b + (size_t)buf * N * K, nullptr, nullptr, nullptr, nullptr);
+        gl<float,   1, 1, M, N> C(d_c, nullptr, nullptr, nullptr, nullptr);
         hipEventRecord(t0);
-        mxfp8_gemm_4wave_kernel<M, N, K><<<grid, 256>>>(A_gl, B_gl, C_gl, d_sa, d_sb);
+        mxfp8_gemm_4wave_kernel<M, N, K><<<grid, 256>>>(A, B, C,
+            d_sa + (size_t)buf * k_iters * M, d_sb + (size_t)buf * k_iters * N);
         hipEventRecord(t1);
         hipEventSynchronize(t1);
         float ms; hipEventElapsedTime(&ms, t0, t1);
