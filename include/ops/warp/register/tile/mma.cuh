@@ -124,7 +124,7 @@ __device__ static inline void mfma1616128(      float2 (&D)[2],
     )};
 }
 
-template<int opsel_a, int opsel_b>
+template<int opsel_a, int opsel_b, int cbsz = 0, int blgp = 0>
 __device__ static inline void mfma1616128_scaled(      float2 (&D)[2],
                                          const fp8e4m3_4 (&A)[8],
                                          const fp8e4m3_4 (&B)[8],
@@ -138,8 +138,8 @@ __device__ static inline void mfma1616128_scaled(      float2 (&D)[2],
         *(intx8_t*)A,
         *(intx8_t*)B,
         *(floatx4_t*)C,
-        0,            // cbsz
-        0,            // blgp
+        cbsz,         // cbsz: 0=fp8(e4m3) A, 1=bf8(e5m2) A
+        blgp,         // blgp: 0=fp8(e4m3) B, 1=bf8(e5m2) B
         opsel_a,      // opsel_a
         *scale_a,     // scale_a
         opsel_b,      // opsel_b
@@ -254,10 +254,10 @@ __device__ static inline void mma_ABt_base(rt_base<float, ducks::rt_layout::col,
  * @param[in] b The second input rt_base<Operand_T, row_layout> matrix.
  * @param[in] c The input rt_base<float, col_layout> accumulator matrix.
  */
-template<int opsel_a, int opsel_b, ducks::rt_shape::all D_shape, ducks::rt_shape::all A_shape, ducks::rt_shape::all B_shape, ducks::rt_shape::all C_shape, typename MM_Operand_T>
+template<int opsel_a, int opsel_b, int cbsz = 0, int blgp = 0, ducks::rt_shape::all D_shape, ducks::rt_shape::all A_shape, ducks::rt_shape::all B_shape, ducks::rt_shape::all C_shape, typename MM_Operand_T>
 __device__ static inline void mma_ABt_base_scaled(rt_base<float, ducks::rt_layout::col, D_shape> &d,
     const rt_base<MM_Operand_T, ducks::rt_layout::row, A_shape> &a,
-    const rt_base<MM_Operand_T, ducks::rt_layout::row, B_shape> &b, // in row-major mode
+    const rt_base<MM_Operand_T, ducks::rt_layout::row, B_shape> &b,
     const rt_base<float, ducks::rt_layout::col, C_shape> &c,
     const fp8e8m0_4 *scale_a,
     const fp8e8m0_4 *scale_b) {
@@ -277,7 +277,7 @@ __device__ static inline void mma_ABt_base_scaled(rt_base<float, ducks::rt_layou
                 A_rows == 16 && A_cols == 128 &&
                 B_rows == 16 && B_cols == 128 &&
                 std::is_same_v<C_shape, typename ducks::rt_shape::rt_16x16>) {
-        mfma1616128_scaled<opsel_a, opsel_b>(d.data, a.data, b.data, c.data, scale_a, scale_b);
+        mfma1616128_scaled<opsel_a, opsel_b, cbsz, blgp>(d.data, a.data, b.data, c.data, scale_a, scale_b);
     } else {
         static_assert(false, "Unsupported shape combination");
     }
@@ -499,17 +499,17 @@ __device__ static inline void mma_ABt(D &d,
  * @param[in] scale_a Pointer to the packed E8M0 scale for the A matrix.
  * @param[in] scale_b Pointer to the packed E8M0 scale for the B matrix.
  */
-template<ducks::rt::col_layout D, ducks::rt::row_layout A, ducks::rt::row_layout B, ducks::rt::col_layout C>
+template<int cbsz = 0, int blgp = 0, ducks::rt::col_layout D, ducks::rt::row_layout A, ducks::rt::row_layout B, ducks::rt::col_layout C>
 __device__ static inline void mma_ABt_scaled(D &d,
                                 const A &a,
-                                const B &b, // notice row and (M, K) instead of col and (K, M)
+                                const B &b,
                                 const C &c,
                                 const fp8e8m0_4 *scale_a,
                                 const fp8e8m0_4 *scale_b) {
 
-    static_assert(D::rows == A::rows && D::cols == B::rows); // Check D matches A, B
-    static_assert(A::cols == B::cols); // Check reduction dim is same
-    static_assert(D::rows == C::rows && D::cols == C::cols); // Check D matches C
+    static_assert(D::rows == A::rows && D::cols == B::rows);
+    static_assert(A::cols == B::cols);
+    static_assert(D::rows == C::rows && D::cols == C::cols);
 
     static_assert(
         (std::is_same_v<typename D::T, float> && std::is_same_v<typename A::T, bf16> &&
@@ -524,7 +524,7 @@ __device__ static inline void mma_ABt_scaled(D &d,
         ([&]<std::size_t N>() {
             [&]<std::size_t... Ms>(std::index_sequence<Ms...>) {
                 ([&]<std::size_t M>() {
-                    mma_ABt_base_scaled<N, M>(
+                    mma_ABt_base_scaled<N, M, cbsz, blgp>(
                         d.tiles[N][M],
                         a.tiles[N][0],
                         b.tiles[M][0],
