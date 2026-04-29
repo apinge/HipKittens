@@ -7,6 +7,7 @@
 #include "maps.cuh"
 #include "reductions.cuh"
 #include "mma.cuh"
+#include "mma_scaled.cuh"
 #include "conversions.cuh"
 
 #ifdef TEST_WARP_REGISTER_TILE_COMPLEX

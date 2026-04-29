@@ -16,6 +16,9 @@ void warp::reg::tile::tests(test_data &results) {
 #ifdef TEST_WARP_REGISTER_TILE_MMA
     warp::reg::tile::mma::tests(results);
 #endif
+#ifdef TEST_WARP_REGISTER_TILE_MMA_SCALED
+    warp::reg::tile::mma_scaled::tests(results);
+#endif
 
 }
 
